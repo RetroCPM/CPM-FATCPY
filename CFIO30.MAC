@@ -1,0 +1,78 @@
+        EXTRN   SLBA
+
+        PUBLIC  ATARD,ATASETUP
+
+CFBAS           EQU     30H
+CFDAT           EQU     CFBAS+0
+CFSCN           EQU     CFBAS+2
+CFLBA0          EQU     CFBAS+3
+CFLBA1          EQU     CFBAS+4
+CFLBA2          EQU     CFBAS+5
+CFDRV           EQU     CFBAS+6
+CFSTS           EQU     CFBAS+7
+CFCMD           EQU     CFBAS+7
+CFFEAT          EQU     CFBAS+1
+
+CF_8BIT         EQU     1H
+CF_SET_FEAT     EQU     0EFh
+CMDRED          EQU     20H
+STBSY           EQU     80H
+
+ATASETUP:
+        CALL    WDRQ
+        LD      A,CF_8BIT
+        OUT     (CFFEAT),A
+        CALL    WDRQ
+        LD      A,CF_SET_FEAT
+        OUT     (CFCMD),A
+        RET
+
+
+ATARD:
+        PUSH    HL
+        CALL    WDRQ
+ 
+        LD      A,1
+        OUT     (CFSCN),A
+
+        LD      A,(SLBA)
+        OUT     (CFLBA0),A
+        LD      A,(SLBA+1)
+        OUT     (CFLBA1),A
+        LD      A,(SLBA+2)
+        OUT     (CFLBA2),A
+        LD      A,(SLBA+3)
+        AND     0FH
+        OR      0E0H
+        OUT     (CFDRV),A
+
+        LD      A,CMDRED
+        OUT     (CFCMD),A
+
+        CALL    WDRQ
+        JR      C,ATERR
+
+        POP     HL
+        LD      C,CFDAT
+        LD      DE,512
+ATRL1:  IN      A,(C)
+        LD      (HL),A
+        INC     HL
+        DEC     DE
+        LD      A,D
+        OR      E
+        JR      NZ,ATRL1
+        OR      A
+        RET
+
+ATERR:  POP     HL
+        SCF
+        RET
+
+WDRQ:   PUSH    AF
+WDRQ1:  IN      A,(CFSTS)
+        AND     10000000B
+        JR      NZ,WDRQ1
+        POP     AF
+        RET
+END

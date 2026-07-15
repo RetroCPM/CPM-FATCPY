@@ -1,0 +1,1350 @@
+        EXTRN   ATARD
+        EXTRN   BDOSCL,UPCA,ISPW2,LOG2A,PRTASZ,SFN2TX
+        EXTRN   CPY2,CPY4,CPY4M,CPY11
+        EXTRN   ZER4,INC4,ADD4,SUB4,CMP4
+        EXTRN   SHL41,SHR49,AD16M,LDLBA,EXTTOK
+
+        EXTRN   LERR,WMODE,DDRV,BREC,SVAL,MCNT
+        EXTRN   NFAT,SPC,SSEC,SENT,FSEC,TATR
+        EXTRN   RSEC,RSEC4,LSPTR
+        EXTRN   PLBA,FFAT,FDAT,TSEC,FSZ,CCNT,RCLU
+        EXTRN   CCLU,SCLU
+        EXTRN   FCLU,FSIZ,FATR,FSFN
+        EXTRN   F1CL,FCCL,FSZE,FPOS,FSOF
+        EXTRN   SLBA,TMP4,TMP2,TMP3,OVHD
+        EXTRN   SDIR,SLEAF,LEAF,TOKBF
+        EXTRN   SFN11,PAT11,DFCB,NMBUF
+        EXTRN   DMABF,SECBF
+
+        PUBLIC  FATMNT,OPNSGL,OPNDIR,MKPAT
+        PUBLIC  DSINIT,DSMAT,MKFCBL,MKFCBF
+        PUBLIC  CPYCUR,CPYFND
+
+BSEL    EQU     14
+BCLOS   EQU     16
+BDEL    EQU     19
+BWSEQ   EQU     21
+BMAKE   EQU     22
+BSDMA   EQU     26
+BPRN    EQU     9
+
+ERIO    EQU     2
+ERMBR   EQU     3
+ERFAT   EQU     4
+ERBPB   EQU     5
+ERNFD   EQU     6
+ERFIL   EQU     7
+ERCPM   EQU     8
+ERUSE   EQU     1
+
+ATVOL   EQU     08H
+ATDIR   EQU     10H
+ATLFN   EQU     0FH
+DIRSZ   EQU     32
+
+FATMNT:
+        XOR     A
+        LD      (SLBA),A
+        LD      (SLBA+1),A
+        LD      (SLBA+2),A
+        LD      (SLBA+3),A
+        LD      (PLBA),A
+        LD      (PLBA+1),A
+        LD      (PLBA+2),A
+        LD      (PLBA+3),A
+
+        LD      HL,SECBF
+        CALL    ATARD
+        JR      C,FMIO
+ 
+        LD      A,(SECBF+1FEH)
+        CP      55H
+        JR      NZ,FMMBR
+        LD      A,(SECBF+1FFH)
+        CP      0AAH
+        JR      NZ,FMMBR
+ 
+        CALL    SAVPAR
+        XOR     A
+        LD      (PFLAG),A
+        CALL    HASPAR
+        JR      C,FMHP0
+        LD      A,1
+        LD      (PFLAG),A
+FMHP0:
+        CALL    TRYPARS
+        RET     NC
+        LD      A,(PFLAG)
+        OR      A
+        JR      NZ,FMFAT
+
+        ; Some removable media are formatted with the FAT32 BPB at LBA 0
+        ; instead of an MBR partition table.  Try sector 0 as a volume boot
+        ; record before reporting that no FAT32 partition exists.
+        XOR     A
+        LD      (SLBA),A
+        LD      (SLBA+1),A
+        LD      (SLBA+2),A
+        LD      (SLBA+3),A
+        LD      (PLBA),A
+        LD      (PLBA+1),A
+        LD      (PLBA+2),A
+        LD      (PLBA+3),A
+        LD      HL,SECBF
+        CALL    ATARD
+        JR      C,FMIO
+        CALL    PRSBPB
+        JR      NC,FMLB0
+        JR      FMFAT
+
+FMLB0:  LD      DE,MSLB0
+        LD      C,BPRN
+        CALL    BDOSCL
+        OR      A
+        RET
+
+FMIO:   LD      A,ERIO
+        SCF
+        RET
+FMMBR:  LD      A,ERMBR
+        SCF
+        RET
+FMFAT:  LD      A,ERFAT
+        SCF
+        RET
+
+SAVPAR:
+        LD      HL,SECBF+1C6H
+        LD      DE,PAR1
+        CALL    CPY4
+        LD      HL,SECBF+1D6H
+        LD      DE,PAR2
+        CALL    CPY4
+        LD      HL,SECBF+1E6H
+        LD      DE,PAR3
+        CALL    CPY4
+        LD      HL,SECBF+1F6H
+        LD      DE,PAR4
+        CALL    CPY4
+        RET
+
+TRYPARS:
+        LD      HL,PAR1
+        CALL    TRYPAR
+        JR      NC,TP1OK
+        LD      HL,PAR2
+        CALL    TRYPAR
+        JR      NC,TP2OK
+        LD      HL,PAR3
+        CALL    TRYPAR
+        JR      NC,TP3OK
+        LD      HL,PAR4
+        CALL    TRYPAR
+        JR      NC,TP4OK
+        SCF
+        RET
+
+TP1OK:  LD      DE,MSP1
+        JR      TPOK
+TP2OK:  LD      DE,MSP2
+        JR      TPOK
+TP3OK:  LD      DE,MSP3
+        JR      TPOK
+TP4OK:  LD      DE,MSP4
+TPOK:   LD      C,BPRN
+        CALL    BDOSCL
+        OR      A
+        RET
+
+HASPAR:
+        LD      HL,SECBF+1BEH
+        LD      B,4
+HPSCHK: LD      A,(HL)
+        OR      A
+        JR      Z,HPSOK
+        CP      80H
+        JR      NZ,HPNONE
+HPSOK:  LD      DE,16
+        ADD     HL,DE
+        DJNZ    HPSCHK
+
+        LD      HL,SECBF+1BEH
+        LD      B,4
+HPLP:   PUSH    HL
+        LD      DE,4
+        ADD     HL,DE
+        LD      A,(HL)
+        POP     HL
+        OR      A
+        JR      Z,HPNEXT
+
+        PUSH    HL
+        LD      DE,8
+        ADD     HL,DE
+        CALL    ISNZ4
+        POP     HL
+        JR      C,HPNEXT
+
+        PUSH    HL
+        LD      DE,12
+        ADD     HL,DE
+        CALL    ISNZ4
+        POP     HL
+        JR      C,HPNEXT
+
+        OR      A
+        RET
+
+HPNEXT: LD      DE,16
+        ADD     HL,DE
+        DJNZ    HPLP
+HPNONE: SCF
+        RET
+
+ISNZ4:
+        LD      A,(HL)
+        INC     HL
+        OR      (HL)
+        INC     HL
+        OR      (HL)
+        INC     HL
+        OR      (HL)
+        SCF
+        RET     Z
+        OR      A
+        RET
+
+TRYPAR:
+        PUSH    HL
+        LD      A,(HL)
+        INC     HL
+        OR      (HL)
+        INC     HL
+        OR      (HL)
+        INC     HL
+        OR      (HL)
+        POP     HL
+        JR      Z,TPBAD
+        LD      DE,PLBA
+        CALL    CPY4
+        LD      HL,PLBA
+        CALL    LDLBA
+        LD      HL,SECBF
+        CALL    ATARD
+        JR      C,TPBAD
+        LD      A,(SECBF+1FEH)
+        CP      55H
+        JR      NZ,TPBAD
+        LD      A,(SECBF+1FFH)
+        CP      0AAH
+        JR      NZ,TPBAD
+        CALL    PRSBPB
+        RET     NC
+TPBAD:  SCF
+        RET
+
+PRSBPB:
+        LD      A,(SECBF)
+        CP      0EBH
+        JR      Z,PBJMP
+        CP      0E9H
+        JP      NZ,PBBOOT
+PBJMP:
+        LD      A,(SECBF+0BH)
+        CP      00H
+        JP      NZ,PBBPS
+        LD      A,(SECBF+0CH)
+        CP      02H
+        JP      NZ,PBBPS
+
+        LD      A,(SECBF+0DH)
+        OR      A
+        JP      Z,PBSPC
+        LD      (SPC),A
+        CALL    ISPW2
+        JP      NZ,PBSPC
+
+        LD      HL,SECBF+0EH
+        LD      DE,RSEC
+        CALL    CPY2
+
+        LD      A,(SECBF+10H)
+        OR      A
+        JP      Z,PBNFT
+        LD      (NFAT),A
+
+        LD      A,(SECBF+11H)
+        OR      A
+        JP      NZ,PBROOT
+        LD      A,(SECBF+12H)
+        OR      A
+        JP      NZ,PBROOT
+
+        LD      A,(SECBF+16H)
+        OR      A
+        JP      NZ,PBF16
+        LD      A,(SECBF+17H)
+        OR      A
+        JP      NZ,PBF16
+
+        LD      HL,SECBF+20H
+        LD      DE,TSEC
+        CALL    CPY4
+
+        LD      HL,SECBF+24H
+        LD      DE,FSZ
+        CALL    CPY4
+
+        LD      HL,SECBF+2CH
+        LD      DE,RCLU
+        CALL    CPY4
+
+        XOR     A
+        LD      (RSEC4+2),A
+        LD      (RSEC4+3),A
+        LD      A,(RSEC)
+        LD      (RSEC4),A
+        LD      A,(RSEC+1)
+        LD      (RSEC4+1),A
+
+        LD      HL,PLBA
+        LD      DE,FFAT
+        CALL    CPY4
+        LD      HL,FFAT
+        LD      DE,RSEC4
+        CALL    ADD4
+
+
+
+        LD      HL,FSZ
+        LD      DE,TMP4
+        CALL    CPY4
+        LD      A,(NFAT)
+        DEC     A
+        LD      B,A
+PBMUL:  LD      A,B
+        OR      A
+        JR      Z,PBMOK
+        LD      HL,TMP4
+        LD      DE,FSZ
+        CALL    ADD4
+        DEC     B
+        JR      PBMUL
+PBMOK:  LD      HL,FFAT
+        LD      DE,FDAT
+        CALL    CPY4
+        LD      HL,FDAT
+        LD      DE,TMP4
+        CALL    ADD4
+
+        LD      A,(SECBF+28H)
+        BIT     7,A
+        JR      Z,PBAFOK
+        AND     0FH
+        LD      B,A
+PBAFLP: LD      A,B
+        OR      A
+        JR      Z,PBAFOK
+        LD      HL,FFAT
+        LD      DE,FSZ
+        CALL    ADD4
+        DEC     B
+        JR      PBAFLP
+PBAFOK:
+
+        LD      HL,RSEC4
+        LD      DE,OVHD
+        CALL    CPY4
+        LD      HL,OVHD
+        LD      DE,TMP4
+        CALL    ADD4
+
+        LD      HL,TSEC
+        LD      DE,CCNT
+        CALL    CPY4
+        LD      HL,CCNT
+        LD      DE,OVHD
+        CALL    SUB4
+
+        LD      A,(SPC)
+        CALL    LOG2A
+        LD      B,A
+PBDIV:  LD      A,B
+        OR      A
+        JR      Z,PBCHK
+        LD      HL,CCNT+3
+        SRL     (HL)
+        DEC     HL
+        RR      (HL)
+        DEC     HL
+        RR      (HL)
+        DEC     HL
+        RR      (HL)
+        DJNZ    PBDIV
+
+PBCHK:  LD      A,(CCNT+3)
+        OR      A
+        JR      NZ,PBOK
+        LD      A,(CCNT+2)
+        OR      A
+        JR      NZ,PBOK
+        LD      A,(CCNT+1)
+        CP      0FFH
+        JR      C,PBNF
+        JR      NZ,PBOK
+        LD      A,(CCNT)
+        CP      0F5H
+        JR      C,PBNF
+PBOK:   OR      A
+        RET
+PBNF:   LD      DE,MSCLC
+        LD      C,BPRN
+        CALL    BDOSCL
+        LD      A,ERFAT
+        SCF
+        RET
+PBBPS:  LD      DE,MSBPS
+        JR      PBDBG
+PBBOOT: LD      DE,MSBOT
+        JR      PBDBG
+PBSPC:  LD      DE,MSSPC
+        JR      PBDBG
+PBNFT:  LD      DE,MSNFT
+        JR      PBDBG
+PBROOT: LD      DE,MSROT
+        JR      PBDBG
+PBF16:  LD      DE,MSF16
+        JR      PBDBG
+PBDBG:  LD      C,BPRN
+        CALL    BDOSCL
+PBBAD:  LD      A,ERBPB
+        SCF
+        RET
+
+MSBPS:  DB      'BPB reject: bytes/sector',13,10,'$'
+MSBOT:  DB      'BPB reject: boot jump',13,10,'$'
+MSSPC:  DB      'BPB reject: sectors/cluster',13,10,'$'
+MSNFT:  DB      'BPB reject: FAT count',13,10,'$'
+MSROT:  DB      'BPB reject: root entries',13,10,'$'
+MSF16:  DB      'BPB reject: FAT16 fields',13,10,'$'
+MSCLC:  DB      'BPB reject: not enough clusters',13,10,'$'
+MSP1:   DB      'Mounted partition 1',13,10,'$'
+MSP2:   DB      'Mounted partition 2',13,10,'$'
+MSP3:   DB      'Mounted partition 3',13,10,'$'
+MSP4:   DB      'Mounted partition 4',13,10,'$'
+MSLB0:  DB      'Mounted LBA 0',13,10,'$'
+MSMKE:  DB      'CP/M make failed',13,10,'$'
+MSWRE:  DB      'CP/M write failed',13,10,'$'
+MSCLE:  DB      'CP/M close failed',13,10,'$'
+MSODNF: DB      'Path part not found: ','$'
+MSDLST: DB      'Dir entries seen:',13,10,'$'
+MSCRLF: DB      13,10,'$'
+
+PAR1:   DW      0,0
+PAR2:   DW      0,0
+PAR3:   DW      0,0
+PAR4:   DW      0,0
+PFLAG:  DB      0
+
+OPNSGL:
+        CALL    OPNDIR
+        JR      C,OSBAD
+        LD      HL,LEAF
+        LD      DE,SFN11
+        CALL    MKSFN
+        JR      C,OSBAD
+        CALL    FDEXAC
+        JR      C,OSBAD
+        LD      A,(FATR)
+        AND     ATDIR
+        JR      NZ,OSFIL
+        CALL    INIOPN
+        OR      A
+        RET
+OSFIL:  LD      A,ERFIL
+OSBAD:  SCF
+        RET
+
+OPNDIR:
+        LD      HL,SDIR
+        LD      A,(HL)
+        CP      '/'
+        JR      NZ,ODBAD
+        INC     HL
+        LD      A,(HL)
+        OR      A
+        JR      Z,ODROOT
+
+        LD      HL,RCLU
+        LD      DE,CCLU
+        CALL    CPY4
+
+        LD      HL,SDIR
+        INC     HL
+ODNXT:  CALL    EXTTOK
+        JR      C,ODBAD
+        LD      A,(TOKBF)
+        OR      A
+        JR      Z,ODDONE
+
+
+        PUSH    HL
+        LD      HL,TOKBF
+        LD      DE,SFN11
+        CALL    MKSFN
+        JR      C,ODMISS
+        CALL    FDEXAC
+        JR      C,ODMISS
+        LD      A,(FATR)
+        AND     ATDIR
+        JR      Z,ODMISS
+        LD      HL,FCLU
+        LD      DE,CCLU
+        CALL    CPY4
+        POP     HL
+        LD      A,(HL)
+        OR      A
+        JR      Z,ODDONE
+        CP      '/'
+        JR      NZ,ODBAD
+        INC     HL
+        JR      ODNXT
+
+ODROOT: LD      HL,RCLU
+        LD      DE,CCLU
+        CALL    CPY4
+ODDONE: OR      A
+        RET
+ODMISS: POP     HL
+        CALL    ODNFPR
+ODBAD:  LD      A,ERNFD
+        SCF
+        RET
+
+ODNFPR: PUSH    HL
+        LD      DE,MSODNF
+        LD      C,BPRN
+        CALL    BDOSCL
+        LD      HL,TOKBF
+        CALL    PRTASZ
+        LD      DE,MSCRLF
+        LD      C,BPRN
+        CALL    BDOSCL
+        CALL    ODLIST
+        POP     HL
+        RET
+
+ODLIST: LD      DE,MSDLST
+        LD      C,BPRN
+        CALL    BDOSCL
+        CALL    DSINIT
+        RET     C
+ODL1:   CALL    DSRAW
+        RET     C
+        RET     Z
+        LD      HL,FSFN
+        LD      DE,NMBUF
+        CALL    SFN2TX
+        LD      HL,NMBUF
+        CALL    PRTASZ
+        LD      DE,MSCRLF
+        LD      C,BPRN
+        CALL    BDOSCL
+        JR      ODL1
+
+MKSFN:
+        PUSH    DE
+        LD      B,11
+        LD      A,' '
+MSFFL:  LD      (DE),A
+        INC     DE
+        DJNZ    MSFFL
+        POP     DE
+
+        LD      B,8
+MSFNM:  LD      A,(HL)
+        OR      A
+        JR      Z,MSFOK
+        CP      '/'
+        JR      Z,MSFOK
+        CP      '.'
+        JR      Z,MSFEX
+        CALL    UPCA
+        CP      '*'
+        JR      Z,MSFBD
+        CP      '?'
+        JR      Z,MSFBD
+        CP      ' '
+        JR      Z,MSFBD
+        LD      (DE),A
+        INC     DE
+        INC     HL
+        DJNZ    MSFNM
+MSFSN:  LD      A,(HL)
+        OR      A
+        JR      Z,MSFOK
+        CP      '/'
+        JR      Z,MSFOK
+        CP      '.'
+        JR      Z,MSFEX
+        INC     HL
+        JR      MSFSN
+MSFEX:  INC     HL
+        LD      DE,SFN11+8
+        LD      B,3
+MSFEL:  LD      A,(HL)
+        OR      A
+        JR      Z,MSFOK
+        CP      '/'
+        JR      Z,MSFOK
+        CALL    UPCA
+        CP      '*'
+        JR      Z,MSFBD
+        CP      '?'
+        JR      Z,MSFBD
+        CP      '.'
+        JR      Z,MSFBD
+        CP      ' '
+        JR      Z,MSFBD
+        LD      (DE),A
+        INC     DE
+        INC     HL
+        DJNZ    MSFEL
+MSFSE:  LD      A,(HL)
+        OR      A
+        JR      Z,MSFOK
+        CP      '/'
+        JR      Z,MSFOK
+        INC     HL
+        JR      MSFSE
+MSFOK:  OR      A
+        RET
+MSFBD:  LD      A,ERUSE
+        SCF
+        RET
+
+MKPAT:
+        LD      DE,PAT11
+        LD      B,11
+        LD      A,' '
+MPFL1:  LD      (DE),A
+        INC     DE
+        DJNZ    MPFL1
+
+        LD      HL,SLEAF
+        LD      A,(HL)
+        CP      '*'
+        JR      NZ,MPGEN
+        INC     HL
+        LD      A,(HL)
+        OR      A
+        JP      Z,MPALL
+        CP      '.'
+        JR      NZ,MPGEN
+        INC     HL
+        LD      A,(HL)
+        CP      '*'
+        JR      NZ,MPGEN
+        INC     HL
+        LD      A,(HL)
+        OR      A
+        JP      Z,MPALL
+
+MPGEN:  LD      HL,SLEAF
+        LD      DE,PAT11
+        LD      B,8
+MPNAM:  LD      A,(HL)
+        OR      A
+        JP      Z,MPDON
+        CP      '/'
+        JP      Z,MPDON
+        CP      '.'
+        JR      Z,MPEXT
+        CP      '*'
+        JR      Z,MPNST
+        CP      '?'
+        JR      Z,MPNQU
+        CALL    UPCA
+        CP      ' '
+        JP      Z,MPBAD
+        LD      (DE),A
+        INC     DE
+        INC     HL
+        DJNZ    MPNAM
+        JR      MPNSK
+MPNST:  LD      A,'?'
+MPNS1:  LD      (DE),A
+        INC     DE
+        INC     HL
+        DJNZ    MPNS1
+        JR      MPDOT
+MPNQU:  LD      A,'?'
+        LD      (DE),A
+        INC     DE
+        INC     HL
+        DJNZ    MPNAM
+        JR      MPNSK
+MPNSK:  LD      A,(HL)
+        OR      A
+        JP      Z,MPDON
+        CP      '/'
+        JP      Z,MPDON
+        CP      '.'
+        JR      Z,MPEXT
+        INC     HL
+        JR      MPNSK
+MPDOT:  LD      A,(HL)
+        OR      A
+        JP      Z,MPDON
+        CP      '/'
+        JP      Z,MPDON
+        CP      '.'
+        JR      Z,MPEXT
+        INC     HL
+        JR      MPDOT
+MPEXT:  INC     HL
+        LD      DE,PAT11+8
+        LD      B,3
+MPELP:  LD      A,(HL)
+        OR      A
+        JP      Z,MPDON
+        CP      '/'
+        JP      Z,MPDON
+        CP      '*'
+        JR      Z,MPEST
+        CP      '?'
+        JR      Z,MPEQU
+        CP      '.'
+        JP      Z,MPBAD
+        CALL    UPCA
+        CP      ' '
+        JP      Z,MPBAD
+        LD      (DE),A
+        INC     DE
+        INC     HL
+        DJNZ    MPELP
+        JR      MPESK
+MPEST:  LD      A,'?'
+MPES1:  LD      (DE),A
+        INC     DE
+        INC     HL
+        DJNZ    MPES1
+        JR      MPDON
+MPEQU:  LD      A,'?'
+        LD      (DE),A
+        INC     DE
+        INC     HL
+        DJNZ    MPELP
+        JR      MPESK
+MPESK:  LD      A,(HL)
+        OR      A
+        JR      Z,MPDON
+        CP      '/'
+        JR      Z,MPDON
+        INC     HL
+        JR      MPESK
+MPALL:  LD      DE,PAT11
+        LD      B,11
+        LD      A,'?'
+MPA1:   LD      (DE),A
+        INC     DE
+        DJNZ    MPA1
+        OR      A
+        RET
+MPDON:  OR      A
+        RET
+MPBAD:  LD      A,ERUSE
+        SCF
+        RET
+
+FDEXAC:
+        CALL    DSINIT
+        JR      C,FDXBD
+FDXLP:  CALL    DSRAW
+        RET     C
+        JR      Z,FDXNF
+        LD      HL,FSFN
+        LD      DE,SFN11
+        LD      B,11
+FDXCM:  LD      A,(HL)
+        CALL    UPCA
+        LD      C,A
+        LD      A,(DE)
+        CP      C
+        JR      NZ,FDXLP
+        INC     HL
+        INC     DE
+        DJNZ    FDXCM
+        OR      A
+        RET
+FDXNF:  LD      A,ERNFD
+FDXBD:  SCF
+        RET
+
+DSINIT:
+        LD      HL,CCLU
+        LD      DE,SCLU
+        CALL    CPY4
+        XOR     A
+        LD      (SSEC),A
+        LD      (SENT),A
+        OR      A
+        RET
+
+DSRAW:
+DSRLD:  LD      HL,SCLU
+        CALL    CL2LBA
+        JR      C,DSRIO
+        LD      A,(SSEC)
+        LD      E,A
+        LD      D,0
+        LD      HL,SLBA
+        CALL    AD16M
+        LD      HL,SECBF
+        CALL    ATARD
+        JR      C,DSRIO
+        LD      A,(SENT)
+        CALL    ETOHL
+        LD      B,0
+        LD      A,(SENT)
+        LD      C,A
+        LD      A,16
+        SUB     C
+        LD      B,A
+DSREN:  LD      A,(HL)
+        CP      00H
+        JR      Z,DSREND
+        CP      0E5H
+        JR      Z,DSRSK
+        PUSH    HL
+        LD      DE,0BH
+        ADD     HL,DE
+        LD      A,(HL)
+        LD      (TATR),A
+        POP     HL
+        CP      ATLFN
+        JR      Z,DSRSK
+        LD      A,(TATR)
+        AND     ATVOL
+        JR      NZ,DSRSK
+        CALL    SAVFND
+        CALL    DSADV
+        OR      1
+        RET
+DSRSK:  LD      DE,DIRSZ
+        ADD     HL,DE
+        LD      A,(SENT)
+        INC     A
+        LD      (SENT),A
+        DJNZ    DSREN
+        CALL    DSNSEC
+        RET     C
+        JR      Z,DSREND
+        JP      DSRLD
+DSREND: XOR     A
+        RET
+DSRIO:  LD      A,ERIO
+        SCF
+        RET
+
+DSMAT:
+DSMLD:  LD      HL,SCLU
+        CALL    CL2LBA
+        JP      C,DSMIO
+        LD      A,(SSEC)
+        LD      E,A
+        LD      D,0
+        LD      HL,SLBA
+        CALL    AD16M
+        LD      HL,SECBF
+        CALL    ATARD
+        JP      C,DSMIO
+        LD      A,(SENT)
+        CALL    ETOHL
+        LD      B,0
+        LD      A,(SENT)
+        LD      C,A
+        LD      A,16
+        SUB     C
+        LD      B,A
+DSMEN:  LD      A,(HL)
+        CP      00H
+        JR      Z,DSMEND
+        CP      0E5H
+        JR      Z,DSMSK
+        PUSH    HL
+        LD      DE,0BH
+        ADD     HL,DE
+        LD      A,(HL)
+        LD      (TATR),A
+        POP     HL
+        CP      ATLFN
+        JR      Z,DSMSK
+        LD      A,(TATR)
+        AND     ATVOL
+        JR      NZ,DSMSK
+        LD      A,(TATR)
+        AND     ATDIR
+        JR      NZ,DSMSK
+        PUSH    BC
+        PUSH    HL
+        LD      DE,PAT11
+        LD      B,11
+DSMCM:  LD      A,(DE)
+        CP      '?'
+        JR      Z,DSMNX
+        PUSH    AF
+        LD      A,(HL)
+        CALL    UPCA
+        LD      C,A
+        POP     AF
+        CP      C
+        JR      NZ,DSMMI
+DSMNX:  INC     DE
+        INC     HL
+        DJNZ    DSMCM
+        POP     HL
+        POP     BC
+        CALL    SAVFND
+        CALL    DSADV
+        OR      1
+        RET
+DSMMI:  POP     HL
+        POP     BC
+DSMSK:  LD      DE,DIRSZ
+        ADD     HL,DE
+        LD      A,(SENT)
+        INC     A
+        LD      (SENT),A
+        DJNZ    DSMEN
+        CALL    DSNSEC
+        RET     C
+        JP      Z,DSMEND
+        JP      DSMLD
+DSMEND: XOR     A
+        RET
+DSMIO:  LD      A,ERIO
+        SCF
+        RET
+
+DSADV:
+        LD      A,(SENT)
+        INC     A
+        CP      16
+        JR      C,DSAV1
+        XOR     A
+        LD      (SENT),A
+        JP      DSNSEC
+DSAV1:  LD      (SENT),A
+        OR      1
+        RET
+
+DSNSEC:
+        LD      A,(SSEC)
+        INC     A
+        LD      C,A
+        LD      A,(SPC)
+        CP      C
+        JR      Z,DSNCL
+        LD      A,C
+        LD      (SSEC),A
+        XOR     A
+        LD      (SENT),A
+        OR      1
+        RET
+DSNCL:  LD      HL,SCLU
+        CALL    FATNXT
+        RET     C
+        JP      Z,DSNEOC
+        XOR     A
+        LD      (SSEC),A
+        LD      (SENT),A
+        OR      1
+        RET
+DSNEOC: XOR     A
+        RET
+
+ETOHL:  LD      E,A
+        LD      D,0
+        LD      B,5
+ETOH1:  SLA     E
+        RL      D
+        DJNZ    ETOH1
+        LD      HL,SECBF
+        ADD     HL,DE
+        RET
+
+SAVFND:
+        PUSH    HL
+        LD      DE,FSFN
+        LD      B,11
+SVF1:   LD      A,(HL)
+        LD      (DE),A
+        INC     HL
+        INC     DE
+        DJNZ    SVF1
+        POP     HL
+        PUSH    HL
+        LD      DE,0BH
+        ADD     HL,DE
+        LD      A,(HL)
+        LD      (FATR),A
+        POP     HL
+        PUSH    HL
+        LD      DE,1AH
+        ADD     HL,DE
+        LD      A,(HL)
+        LD      (FCLU),A
+        INC     HL
+        LD      A,(HL)
+        LD      (FCLU+1),A
+        POP     HL
+        PUSH    HL
+        LD      DE,14H
+        ADD     HL,DE
+        LD      A,(HL)
+        LD      (FCLU+2),A
+        INC     HL
+        LD      A,(HL)
+        LD      (FCLU+3),A
+        POP     HL
+        PUSH    HL
+        LD      DE,1CH
+        ADD     HL,DE
+        LD      DE,FSIZ
+        CALL    CPY4
+        POP     HL
+        RET
+
+INIOPN:
+        LD      HL,FCLU
+        LD      DE,F1CL
+        CALL    CPY4
+        LD      HL,FCLU
+        LD      DE,FCCL
+        CALL    CPY4
+        LD      HL,FSIZ
+        LD      DE,FSZE
+        CALL    CPY4
+        XOR     A
+        LD      (FPOS),A
+        LD      (FPOS+1),A
+        LD      (FPOS+2),A
+        LD      (FPOS+3),A
+        LD      (FSOF),A
+        LD      (FSOF+1),A
+        LD      (FSEC),A
+        LD      (SVAL),A
+        OR      A
+        RET
+
+CPYFND:
+        CALL    INIOPN
+        JR      C,CPFBD
+        CALL    MKFCBF
+        JR      C,CPFBD
+        CALL    CPYCUR
+        RET
+CPFBD:  SCF
+        RET
+
+CPYCUR:
+        CALL    CPMPRE
+        JR      C,CPCBD
+CPCLP:  CALL    FR128
+        JR      C,CPCBD
+        LD      A,(BREC)
+        OR      A
+        JR      Z,CPCDN
+        CP      80H
+        JR      Z,CPCWR
+        LD      HL,DMABF
+        LD      E,A
+        LD      D,0
+        ADD     HL,DE
+        LD      A,80H
+        SUB     E
+        LD      B,A
+        LD      A,1AH
+CPCPD:  LD      (HL),A
+        INC     HL
+        DJNZ    CPCPD
+CPCWR:  LD      DE,DMABF
+        LD      C,BSDMA
+        CALL    BDOSCL
+        LD      DE,DFCB
+        LD      C,BWSEQ
+        CALL    BDOSCL
+        OR      A
+        JR      NZ,CPCWE
+        JR      CPCLP
+CPCDN:  LD      DE,DFCB
+        LD      C,BCLOS
+        CALL    BDOSCL
+        INC     A
+        JR      Z,CPCCE
+        OR      A
+        RET
+CPCWE:  LD      DE,MSWRE
+        JR      CPCER
+CPCCE:  LD      DE,MSCLE
+CPCER:  LD      C,BPRN
+        CALL    BDOSCL
+        LD      A,ERCPM
+CPCBD:  SCF
+        RET
+
+CPMPRE:
+        LD      A,(DDRV)
+        DEC     A
+        LD      E,A
+        LD      C,BSEL
+        CALL    BDOSCL
+        LD      DE,DMABF
+        LD      C,BSDMA
+        CALL    BDOSCL
+        LD      DE,DFCB
+        LD      C,BDEL
+        CALL    BDOSCL
+        LD      DE,DFCB
+        LD      C,BMAKE
+        CALL    BDOSCL
+        INC     A
+        JR      Z,CPMKE
+        OR      A
+        RET
+CPMKE:  LD      DE,MSMKE
+        LD      C,BPRN
+        CALL    BDOSCL
+        LD      A,ERCPM
+        SCF
+        RET
+
+MKFCBL:
+        LD      HL,LEAF
+        LD      DE,SFN11
+        CALL    MKSFN
+        JR      C,MKFLB
+        JR      MKFCB2
+MKFLB:  SCF
+        RET
+
+MKFCBF:
+        LD      HL,FSFN
+        LD      DE,SFN11
+        CALL    CPY11
+
+MKFCB2:
+        LD      HL,DFCB
+        LD      A,(DDRV)
+        LD      (HL),A
+        INC     HL
+        LD      DE,SFN11
+        LD      B,11
+MKFCP:  LD      A,(DE)
+        LD      (HL),A
+        INC     HL
+        INC     DE
+        DJNZ    MKFCP
+        LD      B,24
+        XOR     A
+MKFZR:  LD      (HL),A
+        INC     HL
+        DJNZ    MKFZR
+        OR      A
+        RET
+
+FR128:
+        XOR     A
+        LD      (BREC),A
+FRL1:   LD      HL,FPOS
+        LD      DE,FSZE
+        CALL    CMP4
+        JP      NC,FRDON
+        LD      A,(SVAL)
+        OR      A
+        JR      NZ,FRHAV
+        LD      HL,FCCL
+        CALL    CL2LBA
+        JP      C,FRERR
+        LD      A,(FSEC)
+        LD      E,A
+        LD      D,0
+        LD      HL,SLBA
+        CALL    AD16M
+        LD      HL,SECBF
+        CALL    ATARD
+        JP      C,FRERR
+        LD      A,1
+        LD      (SVAL),A
+FRHAV:  PUSH    HL
+        LD      HL,SECBF
+        LD      A,(FSOF)
+        LD      E,A
+        LD      A,(FSOF+1)
+        LD      D,A
+        ADD     HL,DE
+        LD      A,(HL)
+        POP     HL
+        PUSH    AF
+        LD      A,(BREC)
+        LD      E,A
+        LD      D,0
+        LD      HL,DMABF
+        ADD     HL,DE
+        POP     AF
+        LD      (HL),A
+        LD      A,(BREC)
+        INC     A
+        LD      (BREC),A
+        LD      HL,FPOS
+        CALL    INC4
+        LD      HL,FSOF
+        INC     (HL)
+        JR      NZ,FRNOH
+        INC     HL
+        INC     (HL)
+FRNOH:  LD      A,(FSOF)
+        OR      A
+        JR      NZ,FRCON
+        LD      A,(FSOF+1)
+        CP      02H
+        JR      NZ,FRCON
+        XOR     A
+        LD      (FSOF),A
+        LD      (FSOF+1),A
+        LD      (SVAL),A
+        LD      A,(FSEC)
+        INC     A
+        LD      C,A
+        LD      A,(SPC)
+        CP      C
+        JR      Z,FRNCL
+        LD      A,C
+        LD      (FSEC),A
+        JR      FRCON
+FRNCL:  LD      HL,FCCL
+        CALL    FATNXT
+        JP      C,FRERR
+        JP      Z,FRDON
+        XOR     A
+        LD      (FSEC),A
+FRCON:  LD      A,(BREC)
+        CP      80H
+        JP      C,FRL1
+FRDON:  OR      A
+        RET
+FRERR:  LD      A,ERIO
+        SCF
+        RET
+
+FATNXT:
+        PUSH    HL
+        LD      DE,TMP4
+        CALL    CPY4M
+        LD      HL,TMP4
+        CALL    SHL41
+        LD      HL,TMP4
+        CALL    SHL41
+        LD      HL,TMP4
+        CALL    SHR49
+        LD      HL,FFAT
+        LD      DE,TMP3
+        CALL    CPY4
+        LD      HL,TMP3
+        LD      DE,TMP2
+        CALL    ADD4
+        LD      HL,TMP3
+        CALL    LDLBA
+        LD      HL,SECBF
+        CALL    ATARD
+        JR      C,FNXIO
+        LD      A,(TMP4)
+        LD      E,A
+        LD      A,(TMP4+1)
+        AND     01H
+        LD      D,A
+        LD      HL,SECBF
+        ADD     HL,DE
+        LD      E,(HL)
+        INC     HL
+        LD      D,(HL)
+        INC     HL
+        LD      C,(HL)
+        INC     HL
+        LD      B,(HL)
+        LD      A,B
+        AND     0FH
+        LD      B,A
+        LD      A,B
+        CP      0FH
+        JR      C,FNXST
+        JR      NZ,FNXST
+        LD      A,C
+        CP      0FFH
+        JR      C,FNXST
+        JR      NZ,FNXST
+        LD      A,D
+        CP      0FFH
+        JR      C,FNXST
+        JR      NZ,FNXST
+        LD      A,E
+        CP      0F8H
+        JR      C,FNXST
+        POP     HL
+        XOR     A
+        RET
+FNXST:  POP     HL
+        LD      (HL),E
+        INC     HL
+        LD      (HL),D
+        INC     HL
+        LD      (HL),C
+        INC     HL
+        LD      (HL),B
+        OR      1
+        RET
+FNXIO:  POP     HL
+        SCF
+        RET
+
+CL2LBA:
+        LD      DE,TMP4
+        CALL    CPY4M
+        LD      HL,TMP4
+        LD      A,(HL)
+        SUB     2
+        LD      (HL),A
+        JR      NC,CLMUL
+        INC     HL
+        LD      A,(HL)
+        SBC     A,0
+        LD      (HL),A
+        INC     HL
+        LD      A,(HL)
+        SBC     A,0
+        LD      (HL),A
+        INC     HL
+        LD      A,(HL)
+        SBC     A,0
+        LD      (HL),A
+CLMUL:  LD      HL,SLBA
+        CALL    ZER4
+        LD      A,(SPC)
+        LD      B,A
+CLML1:  LD      A,B
+        OR      A
+        JR      Z,CLADD
+        LD      HL,SLBA
+        LD      DE,TMP4
+        CALL    ADD4
+        DJNZ    CLML1
+CLADD:  LD      HL,SLBA
+        LD      DE,FDAT
+        CALL    ADD4
+        OR      A
+        RET
+
+
+        END
+        

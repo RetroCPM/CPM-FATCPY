@@ -1,0 +1,414 @@
+        PUBLIC  PRERR,BDOSCL,UPCA,ISPW2,LOG2A
+        PUBLIC  CPYAZ,CPY2,CPY4,CPY4M,CPY11
+        PUBLIC  ZER4,INC4,ADD4,SUB4,CMP4
+        PUBLIC  SHL41,SHR49,AD16M,LDLBA,EXTTOK
+        PUBLIC  SFN2TX,PRTASZ,PRG11
+
+        EXTRN   LERR,SLBA,TMP2
+        EXTRN   TOKBF,NMBUF
+
+BDOS    EQU     0005H
+
+BCOUT   EQU     2
+BPRN    EQU     9
+
+ERUSE   EQU     1
+ERIO    EQU     2
+ERMBR   EQU     3
+ERFAT   EQU     4
+ERBPB   EQU     5
+ERNFD   EQU     6
+ERFIL   EQU     7
+ERCPM   EQU     8
+ERNOM   EQU     10
+
+PRERR:
+        LD      A,(LERR)
+        CP      ERUSE
+        LD      DE,MSUSE
+        JR      Z,PRER1
+        CP      ERIO
+        LD      DE,MSIO
+        JR      Z,PRER1
+        CP      ERMBR
+        LD      DE,MSMBR
+        JR      Z,PRER1
+        CP      ERFAT
+        LD      DE,MSFAT
+        JR      Z,PRER1
+        CP      ERBPB
+        LD      DE,MSBPB
+        JR      Z,PRER1
+        CP      ERNFD
+        LD      DE,MSNFD
+        JR      Z,PRER1
+        CP      ERFIL
+        LD      DE,MSFIL
+        JR      Z,PRER1
+        CP      ERCPM
+        LD      DE,MSCPM
+        JR      Z,PRER1
+        CP      ERNOM
+        LD      DE,MSNOM
+        JR      Z,PRER1
+        LD      DE,MSCOR
+PRER1:  LD      C,BPRN
+        JP      BDOSCL
+
+BDOSCL:
+        PUSH    BC
+        PUSH    DE
+        PUSH    HL
+        CALL    BDOS
+        POP     HL
+        POP     DE
+        POP     BC
+        RET
+
+UPCA:
+        CP      'a'
+        RET     C
+        CP      'z'+1
+        RET     NC
+        AND     11011111B
+        RET
+
+ISPW2:
+        OR      A
+        RET     Z
+        LD      B,A
+        DEC     A
+        AND     B
+        RET
+
+LOG2A:
+        LD      B,0
+LG2L:   SRL     A
+        JR      C,LG2D
+        INC     B
+        JR      LG2L
+LG2D:   LD      A,B
+        RET
+
+CPYAZ:
+        LD      A,(HL)
+        LD      (DE),A
+        INC     HL
+        INC     DE
+        OR      A
+        JR      NZ,CPYAZ
+        RET
+
+CPY2:
+        LD      A,(HL)
+        LD      (DE),A
+        INC     HL
+        INC     DE
+        LD      A,(HL)
+        LD      (DE),A
+        RET
+
+CPY4:
+        LD      A,(HL)
+        LD      (DE),A
+        INC     HL
+        INC     DE
+        LD      A,(HL)
+        LD      (DE),A
+        INC     HL
+        INC     DE
+        LD      A,(HL)
+        LD      (DE),A
+        INC     HL
+        INC     DE
+        LD      A,(HL)
+        LD      (DE),A
+        RET
+
+CPY4M:
+        JR      CPY4
+
+CPY11:
+        LD      B,11
+CP11L:  LD      A,(HL)
+        LD      (DE),A
+        INC     HL
+        INC     DE
+        DJNZ    CP11L
+        RET
+
+ZER4:
+        XOR     A
+        LD      (HL),A
+        INC     HL
+        LD      (HL),A
+        INC     HL
+        LD      (HL),A
+        INC     HL
+        LD      (HL),A
+        RET
+
+INC4:
+        INC     (HL)
+        RET     NZ
+        INC     HL
+        INC     (HL)
+        RET     NZ
+        INC     HL
+        INC     (HL)
+        RET     NZ
+        INC     HL
+        INC     (HL)
+        RET
+
+ADD4:
+        LD      A,(DE)
+        ADD     A,(HL)
+        LD      (HL),A
+        INC     HL
+        INC     DE
+        LD      A,(DE)
+        ADC     A,(HL)
+        LD      (HL),A
+        INC     HL
+        INC     DE
+        LD      A,(DE)
+        ADC     A,(HL)
+        LD      (HL),A
+        INC     HL
+        INC     DE
+        LD      A,(DE)
+        ADC     A,(HL)
+        LD      (HL),A
+        RET
+
+SUB4:
+        LD      A,(DE)
+        LD      B,A
+        LD      A,(HL)
+        SUB     B
+        LD      (HL),A
+        INC     HL
+        INC     DE
+
+        LD      A,(DE)
+        LD      B,A
+        LD      A,(HL)
+        SBC     A,B
+        LD      (HL),A
+        INC     HL
+        INC     DE
+
+        LD      A,(DE)
+        LD      B,A
+        LD      A,(HL)
+        SBC     A,B
+        LD      (HL),A
+        INC     HL
+        INC     DE
+
+        LD      A,(DE)
+        LD      B,A
+        LD      A,(HL)
+        SBC     A,B
+        LD      (HL),A
+        RET
+
+CMP4:
+        PUSH    HL
+        PUSH    DE
+
+        INC     HL
+        INC     HL
+        INC     HL
+        INC     DE
+        INC     DE
+        INC     DE
+
+        LD      A,(DE)
+        LD      B,A
+        LD      A,(HL)
+        CP      B
+        JR      NZ,CP4D
+
+        DEC     HL
+        DEC     DE
+        LD      A,(DE)
+        LD      B,A
+        LD      A,(HL)
+        CP      B
+        JR      NZ,CP4D
+
+        DEC     HL
+        DEC     DE
+        LD      A,(DE)
+        LD      B,A
+        LD      A,(HL)
+        CP      B
+        JR      NZ,CP4D
+
+        DEC     HL
+        DEC     DE
+        LD      A,(DE)
+        LD      B,A
+        LD      A,(HL)
+        CP      B
+
+CP4D:
+        POP     DE
+        POP     HL
+        RET
+
+SHL41:
+        SLA     (HL)
+        INC     HL
+        RL      (HL)
+        INC     HL
+        RL      (HL)
+        INC     HL
+        RL      (HL)
+        RET
+
+SHR49:
+        LD      A,(HL)
+        LD      (TMP2),A
+        INC     HL
+        LD      A,(HL)
+        LD      (TMP2+1),A
+        INC     HL
+        LD      A,(HL)
+        LD      (TMP2+2),A
+        INC     HL
+        LD      A,(HL)
+        LD      (TMP2+3),A
+        LD      B,9
+SR49L:  LD      HL,TMP2+3
+        SRL     (HL)
+        DEC     HL
+        RR      (HL)
+        DEC     HL
+        RR      (HL)
+        DEC     HL
+        RR      (HL)
+        DJNZ    SR49L
+        RET
+
+AD16M:
+        LD      A,E
+        ADD     A,(HL)
+        LD      (HL),A
+        INC     HL
+        LD      A,D
+        ADC     A,(HL)
+        LD      (HL),A
+        INC     HL
+        LD      A,0
+        ADC     A,(HL)
+        LD      (HL),A
+        INC     HL
+        LD      A,0
+        ADC     A,(HL)
+        LD      (HL),A
+        RET
+
+LDLBA:
+        LD      DE,SLBA
+        JP      CPY4
+
+EXTTOK:
+        LD      DE,TOKBF
+        LD      B,12
+EXTL1:  LD      A,(HL)
+        OR      A
+        JR      Z,EXTDN
+        CP      '/'
+        JR      Z,EXTDN
+        LD      (DE),A
+        INC     DE
+        INC     HL
+        DJNZ    EXTL1
+        LD      A,ERUSE
+        SCF
+        RET
+EXTDN:  XOR     A
+        LD      (DE),A
+        OR      A
+        RET
+
+SFN2TX:
+        PUSH    HL
+        PUSH    DE
+        LD      B,8
+S2N1:   LD      A,(HL)
+        CP      ' '
+        JR      Z,S2N2
+        LD      (DE),A
+        INC     DE
+        INC     HL
+        DJNZ    S2N1
+        JR      S2AFT
+S2N2:   INC     HL
+        DJNZ    S2N2
+S2AFT:  PUSH    HL
+        LD      A,(HL)
+        CP      ' '
+        JR      Z,S2TRM
+        LD      A,'.'
+        LD      (DE),A
+        INC     DE
+        LD      B,3
+S2E1:   LD      A,(HL)
+        CP      ' '
+        JR      Z,S2TR2
+        LD      (DE),A
+        INC     DE
+        INC     HL
+        DJNZ    S2E1
+        JR      S2TR2
+S2TRM:
+S2TR2:  POP     HL
+        XOR     A
+        LD      (DE),A
+        POP     DE
+        POP     HL
+        RET
+
+PRTASZ:
+        LD      A,(HL)
+        OR      A
+        RET     Z
+        LD      E,A
+        LD      C,BCOUT
+        CALL    BDOSCL
+        INC     HL
+        JR      PRTASZ
+
+PRG11:
+        PUSH    HL
+        LD      DE,MSCPY
+        LD      C,BPRN
+        CALL    BDOSCL
+        POP     HL
+        LD      DE,NMBUF
+        CALL    SFN2TX
+        LD      HL,NMBUF
+        CALL    PRTASZ
+        LD      DE,MSCRLF
+        LD      C,BPRN
+        CALL    BDOSCL
+        RET
+
+MSUSE:  DB      'Usage: FATCPY B: /DIR/FILE.EXT or /DIR/*',13,10,'$'
+MSIO:   DB      'I/O error',13,10,'$'
+MSMBR:  DB      'Bad MBR',13,10,'$'
+MSFAT:  DB      'No FAT32 partition found',13,10,'$'
+MSBPB:  DB      'Bad FAT32 BPB',13,10,'$'
+MSNFD:  DB      'Source file not found',13,10,'$'
+MSFIL:  DB      'Source is not a file',13,10,'$'
+MSCPM:  DB      'CP/M write/create error',13,10,'$'
+MSCOR:  DB      'Filesystem appears corrupt',13,10,'$'
+MSNOM:  DB      'No matching files',13,10,'$'
+MSCPY:  DB      'Copying ','$'
+MSCRLF: DB      13,10,'$'
+
+END

@@ -1,0 +1,377 @@
+        EXTRN   FATMNT,OPNSGL,OPNDIR,MKPAT
+        EXTRN   DSINIT,DSMAT,MKFCBL,CPYCUR,CPYFND
+        EXTRN   PRERR,BDOSCL,UPCA,CPYAZ,PRG11
+        EXTRN   ATASETUP
+
+        PUBLIC  START
+        PUBLIC  LERR,WMODE,DDRV,BREC,SVAL,MCNT
+        PUBLIC  NFAT,SPC,SSEC,SENT,FSEC,TATR
+        PUBLIC  RSEC,RSEC4,LSPTR
+        PUBLIC  PLBA,FFAT,FDAT,TSEC,FSZ,CCNT,RCLU
+        PUBLIC  CCLU,SCLU
+        PUBLIC  FCLU,FSIZ,FATR,FSFN
+        PUBLIC  F1CL,FCCL,FSZE,FPOS,FSOF
+        PUBLIC  SLBA,TMP4,TMP2,TMP3,OVHD
+        PUBLIC  SSPEC,SDIR,SLEAF,LEAF,TOKBF
+        PUBLIC  SFN11,PAT11,DFCB,NMBUF
+        PUBLIC  DMABF,SECBF
+
+BDOS    EQU     0005H
+CTAIL   EQU     0080H
+BPRN    EQU     9
+
+ERUSE   EQU     1
+ERNOM   EQU     10
+
+START:
+        LD      DE,TXTStart
+        LD      C,BPRN
+        CALL    BDOSCL
+
+        CALL    INIT
+
+        LD      DE,TXTInit
+        LD      C,BPRN
+        CALL    BDOSCL
+
+        CALL    ATASETUP
+
+        LD      DE,TXTATA
+        LD      C,BPRN
+        CALL    BDOSCL
+
+        CALL    PARARG
+        JR      C,SHERR
+
+        CALL    FATMNT
+        JR      C,SHERR
+
+        LD      DE,TXTMode
+        LD      C,BPRN
+        CALL    BDOSCL
+
+        LD      A,(WMODE)
+        OR      A
+        JR      NZ,WMODE1
+
+        CALL    OPNSGL
+        JR      C,SHERR
+
+        CALL    MKFCBL
+        JR      C,SHERR
+
+        LD      HL,SFN11
+        CALL    PRG11
+
+        CALL    CPYCUR
+        JR      C,SHERR
+
+        LD      DE,MSOK
+        LD      C,BPRN
+        CALL    BDOSCL
+        RET
+
+WMODE1:
+        LD      DE,TXTMode1
+        LD      C,BPRN
+        CALL    BDOSCL
+
+
+        CALL    OPNDIR
+        JR      C,SHERR
+
+        CALL    MKPAT
+        JR      C,SHERR
+
+        CALL    DSINIT
+        JR      C,SHERR
+
+        XOR     A
+        LD      (MCNT),A
+
+WLOOP:
+        CALL    DSMAT
+        JR      C,SHERR
+        JR      Z,WDONE
+
+        LD      HL,FSFN
+        CALL    PRG11
+
+        CALL    CPYFND
+        JR      C,SHERR
+
+        LD      A,(MCNT)
+        INC     A
+        LD      (MCNT),A
+        JR      WLOOP
+
+WDONE:
+        LD      A,(MCNT)
+        OR      A
+        JR      NZ,WOK
+        LD      A,ERNOM
+        JR      SHERR
+
+WOK:
+        LD      DE,MSOK
+        LD      C,BPRN
+        CALL    BDOSCL
+        RET
+
+SHERR:
+        LD      (LERR),A
+        CALL    PRERR
+        RET
+
+INIT:
+        XOR     A
+        LD      (LERR),A
+        LD      (WMODE),A
+        LD      (DDRV),A
+        LD      (BREC),A
+        LD      (SVAL),A
+        LD      (MCNT),A
+        LD      HL,0
+        LD      (FPOS),HL
+        LD      (FPOS+2),HL
+        RET
+
+PARARG:
+        LD      HL,CTAIL
+        LD      B,(HL)
+        INC     HL
+        LD      A,B
+        OR      A
+        JR      Z,PABAD
+
+        CALL    SKPSP
+
+        LD      A,(HL)
+        CALL    UPCA
+        CP      'A'
+        JR      C,PABAD
+        CP      'Z'+1
+        JR      NC,PABAD
+        SUB     'A'
+        INC     A
+        LD      (DDRV),A
+        INC     HL
+
+        LD      A,(HL)
+        CP      ':'
+        JR      NZ,PABAD
+        INC     HL
+
+        CALL    SKPSP
+
+        LD      A,(HL)
+        CP      '/'
+        JR      NZ,PABAD
+
+        LD      DE,SSPEC
+PACPY:
+        LD      A,(HL)
+        CP      0DH
+        JR      Z,PATRM
+        OR      A
+        JR      Z,PATRM
+        LD      (DE),A
+        INC     DE
+        INC     HL
+        JR      PACPY
+
+PATRM:
+        XOR     A
+        LD      (DE),A
+
+        CALL    SPLSRC
+        RET
+
+PABAD:
+        LD      A,ERUSE
+        SCF
+        RET
+
+SKPSP:
+        LD      A,(HL)
+        CP      ' '
+        RET     NZ
+        INC     HL
+        JR      SKPSP
+
+SPLSRC:
+        LD      HL,SSPEC
+        XOR     A
+        LD      (LSPTR),A
+        LD      (LSPTR+1),A
+
+SPSCN:
+        LD      A,(HL)
+        OR      A
+        JR      Z,SPEND
+        CP      '/'
+        JR      NZ,SPNX
+        LD      A,L
+        LD      (LSPTR),A
+        LD      A,H
+        LD      (LSPTR+1),A
+SPNX:
+        INC     HL
+        JR      SPSCN
+
+SPEND:
+        LD      A,(LSPTR)
+        LD      B,A
+        LD      A,(LSPTR+1)
+        OR      B
+        JR      Z,SPBAD
+
+        LD      HL,SSPEC
+        LD      DE,SDIR
+        LD      BC,(LSPTR)
+
+        LD      A,L
+        CP      C
+        JR      NZ,SPDIR
+        LD      A,H
+        CP      B
+        JR      NZ,SPDIR
+
+        LD      A,'/'
+        LD      (DE),A
+        INC     DE
+        XOR     A
+        LD      (DE),A
+        JR      SPLEF
+
+SPDIR:
+SPDL1:
+        LD      A,L
+        CP      C
+        JR      NZ,SPDC1
+        LD      A,H
+        CP      B
+        JR      Z,SPDDN
+SPDC1:
+        LD      A,(HL)
+        LD      (DE),A
+        INC     HL
+        INC     DE
+        JR      SPDL1
+
+SPDDN:
+        XOR     A
+        LD      (DE),A
+
+SPLEF:
+        LD      HL,(LSPTR)
+        INC     HL
+        LD      DE,SLEAF
+SPLC1:
+        LD      A,(HL)
+        LD      (DE),A
+        INC     HL
+        INC     DE
+        OR      A
+        JR      NZ,SPLC1
+
+        XOR     A
+        LD      (WMODE),A
+        LD      HL,SLEAF
+SPWC1:
+        LD      A,(HL)
+        OR      A
+        JR      Z,SPCPY
+        CP      '*'
+        JR      Z,SPWON
+        CP      '?'
+        JR      Z,SPWON
+        INC     HL
+        JR      SPWC1
+
+SPWON:
+        LD      A,1
+        LD      (WMODE),A
+
+SPCPY:
+        LD      HL,SLEAF
+        LD      DE,LEAF
+        CALL    CPYAZ
+        OR      A
+        RET
+
+SPBAD:
+        LD      A,ERUSE
+        SCF
+        RET
+
+MSOK:   DB      'Copy complete',13,10,'$'
+TXTStart:       DB      'Starting Copy',13,10,'$'
+TXTInit:        DB      'Init Complete',13,10,'$'
+TXTATA:         DB      'ATA Setup Complete',13,10,'$'
+TXTMode:        DB      'Checking Mode',13,10,'$'
+TXTMode1:       DB      'Running Mode 1',13,10,'$'
+
+; shared data
+LERR:   DB      0
+WMODE:  DB      0
+DDRV:   DB      0
+BREC:   DB      0
+SVAL:   DB      0
+MCNT:   DB      0
+
+NFAT:   DB      0
+SPC:    DB      0
+
+SSEC:   DB      0
+SENT:   DB      0
+FSEC:   DB      0
+TATR:   DB      0
+
+RSEC:   DW      0
+RSEC4:  DW      0,0
+LSPTR:  DW      0
+
+PLBA:   DW      0,0
+FFAT:   DW      0,0
+FDAT:   DW      0,0
+TSEC:   DW      0,0
+FSZ:    DW      0,0
+CCNT:   DW      0,0
+RCLU:   DW      0,0
+
+CCLU:   DW      0,0
+SCLU:   DW      0,0
+
+FCLU:   DW      0,0
+FSIZ:   DW      0,0
+FATR:   DB      0
+FSFN:   DS      11
+
+F1CL:   DW      0,0
+FCCL:   DW      0,0
+FSZE:   DW      0,0
+FPOS:   DW      0,0
+FSOF:   DW      0
+
+SLBA:   DW      0,0
+TMP4:   DW      0,0
+TMP2:   DW      0,0
+TMP3:   DW      0,0
+OVHD:   DW      0,0
+
+SSPEC:  DS      80
+SDIR:   DS      80
+SLEAF:  DS      16
+LEAF:   DS      16
+TOKBF:  DS      16
+
+SFN11:  DS      11
+PAT11:  DS      11
+DFCB:   DS      36
+NMBUF:  DS      13
+
+DMABF:  DS      128
+SECBF:  DS      512
+
+END
