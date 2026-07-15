@@ -97,10 +97,7 @@ FMHP0:
         JR      NC,FMLB0
         JR      FMFAT
 
-FMLB0:  LD      DE,MSLB0
-        LD      C,BPRN
-        CALL    BDOSCL
-        OR      A
+FMLB0:  XOR     A
         RET
 
 FMIO:   LD      A,ERIO
@@ -144,16 +141,11 @@ TRYPARS:
         SCF
         RET
 
-TP1OK:  LD      DE,MSP1
-        JR      TPOK
-TP2OK:  LD      DE,MSP2
-        JR      TPOK
-TP3OK:  LD      DE,MSP3
-        JR      TPOK
-TP4OK:  LD      DE,MSP4
-TPOK:   LD      C,BPRN
-        CALL    BDOSCL
-        OR      A
+TP1OK:  JR      TPOK
+TP2OK:  JR      TPOK
+TP3OK:  JR      TPOK
+TP4OK:  JR      TPOK
+TPOK:   XOR     A
         RET
 
 HASPAR:
@@ -397,42 +389,28 @@ PBCHK:  LD      A,(CCNT+3)
         JR      C,PBNF
 PBOK:   OR      A
         RET
-PBNF:   LD      DE,MSCLC
-        LD      C,BPRN
-        CALL    BDOSCL
-        LD      A,ERFAT
+PBNF:   LD      A,ERFAT
         SCF
         RET
-PBBPS:  LD      DE,MSBPS
-        JR      PBDBG
-PBBOOT: LD      DE,MSBOT
-        JR      PBDBG
-PBSPC:  LD      DE,MSSPC
-        JR      PBDBG
-PBNFT:  LD      DE,MSNFT
-        JR      PBDBG
-PBROOT: LD      DE,MSROT
-        JR      PBDBG
-PBF16:  LD      DE,MSF16
-        JR      PBDBG
-PBDBG:  LD      C,BPRN
-        CALL    BDOSCL
-PBBAD:  LD      A,ERBPB
+PBBPS:  LD      A,ERBPB
+        SCF
+        RET
+PBBOOT: LD      A,ERBPB
+        SCF
+        RET
+PBSPC:  LD      A,ERBPB
+        SCF
+        RET
+PBNFT:  LD      A,ERBPB
+        SCF
+        RET
+PBROOT: LD      A,ERBPB
+        SCF
+        RET
+PBF16:  LD      A,ERBPB
         SCF
         RET
 
-MSBPS:  DB      'BPB reject: bytes/sector',13,10,'$'
-MSBOT:  DB      'BPB reject: boot jump',13,10,'$'
-MSSPC:  DB      'BPB reject: sectors/cluster',13,10,'$'
-MSNFT:  DB      'BPB reject: FAT count',13,10,'$'
-MSROT:  DB      'BPB reject: root entries',13,10,'$'
-MSF16:  DB      'BPB reject: FAT16 fields',13,10,'$'
-MSCLC:  DB      'BPB reject: not enough clusters',13,10,'$'
-MSP1:   DB      'Mounted partition 1',13,10,'$'
-MSP2:   DB      'Mounted partition 2',13,10,'$'
-MSP3:   DB      'Mounted partition 3',13,10,'$'
-MSP4:   DB      'Mounted partition 4',13,10,'$'
-MSLB0:  DB      'Mounted LBA 0',13,10,'$'
 MSMKE:  DB      'CP/M make failed',13,10,'$'
 MSWRE:  DB      'CP/M write failed',13,10,'$'
 MSCLE:  DB      'CP/M close failed',13,10,'$'

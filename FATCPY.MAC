@@ -24,31 +24,15 @@ ERUSE   EQU     1
 ERNOM   EQU     10
 
 START:
-        LD      DE,TXTStart
-        LD      C,BPRN
-        CALL    BDOSCL
-
         CALL    INIT
 
-        LD      DE,TXTInit
-        LD      C,BPRN
-        CALL    BDOSCL
-
         CALL    ATASETUP
-
-        LD      DE,TXTATA
-        LD      C,BPRN
-        CALL    BDOSCL
 
         CALL    PARARG
         JR      C,SHERR
 
         CALL    FATMNT
         JR      C,SHERR
-
-        LD      DE,TXTMode
-        LD      C,BPRN
-        CALL    BDOSCL
 
         LD      A,(WMODE)
         OR      A
@@ -72,11 +56,6 @@ START:
         RET
 
 WMODE1:
-        LD      DE,TXTMode1
-        LD      C,BPRN
-        CALL    BDOSCL
-
-
         CALL    OPNDIR
         JR      C,SHERR
 
@@ -306,12 +285,6 @@ SPBAD:
         RET
 
 MSOK:   DB      'Copy complete',13,10,'$'
-TXTStart:       DB      'Starting Copy',13,10,'$'
-TXTInit:        DB      'Init Complete',13,10,'$'
-TXTATA:         DB      'ATA Setup Complete',13,10,'$'
-TXTMode:        DB      'Checking Mode',13,10,'$'
-TXTMode1:       DB      'Running Mode 1',13,10,'$'
-
 ; shared data
 LERR:   DB      0
 WMODE:  DB      0
