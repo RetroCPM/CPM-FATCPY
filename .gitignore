@@ -1,0 +1,4 @@
+# Ignore generated CP/M output artifacts
+*.PRN
+*.REL
+*.COM
