@@ -1,8 +1,10 @@
-# FATCPY
+# FATCPY and FATDIR
 
 FATCPY is a CP/M utility that reads files from a FAT32-formatted volume and copies them into the CP/M environment. It is invoked from the CP/M command line with a drive letter and a path pattern.
 
-## Usage
+FATDIR lists the files and directories on a FAT32-formatted volume from CP/M.
+
+## FATCPY Usage
 
 Run it as:
 
@@ -24,14 +26,14 @@ FATCPY B: /DIR/*
 
 Wildcards `*` and `?` are supported in the path pattern.
 
-## Examples
+## FATCPY Examples
 
 ```text
 FATCPY C: /DOCS/README.TXT
 FATCPY C: /BIN/*
 ```
 
-## Notes
+## FATCPY Notes
 
 - The program reports success with `Copy complete`.
 - Invalid usage prints:
@@ -40,6 +42,48 @@ FATCPY C: /BIN/*
 Usage: FATCPY B: /DIR/FILE.EXT or /DIR/*
 ```
 
+## FATDIR Usage
+
+List the FAT32 root directory:
+
+```text
+FATDIR
+```
+
+List a directory on the FAT32 volume:
+
+```text
+FATDIR /DIR
+```
+
+### Arguments
+
+- `/DIR` is optional. If omitted, FATDIR lists the FAT32 root directory.
+- FATDIR always reads the FAT32 CF volume.
+
+## FATDIR Examples
+
+```text
+FATDIR
+FATDIR /DOCS
+FATDIR /BIN
+```
+
+## FATDIR Notes
+
+- FATDIR displays FAT short 8.3 names.
+- Entries are shown in four columns.
+- File extensions, including the full stop, are aligned to the right of a 12-character name field.
+- Directory entries are shown in brackets, such as `[DOCS]`.
+- Invalid usage prints:
+
+```text
+Usage: FATDIR [/DIR]
+```
+
 ## Build
 
-The repository includes CP/M source files and a build script, `MAKE.SUB`, for assembling the program.
+The repository includes CP/M source files and build scripts:
+
+- `MAKE.SUB` assembles FATCPY.
+- `MAKEDIR.SUB` assembles FATDIR.
