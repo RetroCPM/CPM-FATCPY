@@ -1,0 +1,401 @@
+        EXTRN   FATMNT,OPNDIR,DSINIT,DSRAW
+        EXTRN   PRERR,BDOSCL,PRTASZ
+        EXTRN   ATASETUP
+
+        PUBLIC  START
+        PUBLIC  LERR,WMODE,DDRV,BREC,SVAL,MCNT
+        PUBLIC  NFAT,SPC,SSEC,SENT,FSEC,TATR
+        PUBLIC  RSEC,RSEC4,LSPTR
+        PUBLIC  PLBA,FFAT,FDAT,TSEC,FSZ,CCNT,RCLU
+        PUBLIC  CCLU,SCLU
+        PUBLIC  FCLU,FSIZ,FATR,FSFN
+        PUBLIC  F1CL,FCCL,FSZE,FPOS,FSOF
+        PUBLIC  SLBA,TMP4,TMP2,TMP3,OVHD
+        PUBLIC  SSPEC,SDIR,SLEAF,LEAF,TOKBF
+        PUBLIC  SFN11,PAT11,DFCB,NMBUF
+        PUBLIC  DMABF,SECBF
+
+CTAIL   EQU     0080H
+BCOUT   EQU     2
+BPRN    EQU     9
+
+ERUSE   EQU     1
+
+ATDIR   EQU     10H
+COLSP   EQU     6
+MAXCOL  EQU     4
+
+START:
+        CALL    INIT
+
+        CALL    ATASETUP
+
+        CALL    PARARG
+        JP      C,SHERR
+
+        CALL    FATMNT
+        JP      C,SHERR
+
+        CALL    OPNDIR
+        JP      C,SHERR
+
+        CALL    DSINIT
+        JP      C,SHERR
+
+        LD      DE,MSHEAD
+        LD      C,BPRN
+        CALL    BDOSCL
+        LD      HL,SDIR
+        CALL    PRTASZ
+        LD      DE,MSCRLF
+        LD      C,BPRN
+        CALL    BDOSCL
+        LD      DE,MSCRLF
+        LD      C,BPRN
+        CALL    BDOSCL
+
+        XOR     A
+        LD      (SVAL),A
+        LD      (MCNT),A
+
+DLOOP:
+        CALL    DSRAW
+        JP      C,SHERR
+        JR      Z,DDONE
+
+        CALL    ISDOTD
+        JR      Z,DLOOP
+
+        LD      A,1
+        LD      (SVAL),A
+
+        CALL    DIRENT
+        JR      DLOOP
+
+DDONE:
+        LD      A,(SVAL)
+        OR      A
+        JR      NZ,DFINI
+        LD      DE,MSNONE
+        LD      C,BPRN
+        CALL    BDOSCL
+        RET
+
+DFINI:
+        LD      A,(MCNT)
+        OR      A
+        RET     Z
+        LD      DE,MSCRLF
+        LD      C,BPRN
+        CALL    BDOSCL
+        RET
+
+ISDOTD: LD      A,(FATR)
+        AND     ATDIR
+        JR      Z,ISDN
+        LD      A,(FSFN)
+        CP      '.'
+        JR      NZ,ISDN
+        LD      A,(FSFN+1)
+        CP      ' '
+        JR      Z,ISDY
+        CP      '.'
+        JR      NZ,ISDN
+        XOR     A
+        RET
+ISDY:   XOR     A
+        RET
+ISDN:   LD      A,1
+        OR      A
+        RET
+
+DIRENT:
+        LD      A,(FATR)
+        AND     ATDIR
+        JR      Z,DFILE
+
+        CALL    PRNDIR
+        JR      DCOL
+
+DFILE:  CALL    PRN12
+        LD      B,2
+        CALL    PSPCS
+
+DCOL:   LD      A,(MCNT)
+        INC     A
+        CP      MAXCOL
+        JR      Z,DCRLF
+        LD      (MCNT),A
+        LD      B,COLSP
+        CALL    PSPCS
+        RET
+DCRLF:  XOR     A
+        LD      (MCNT),A
+        LD      DE,MSCRLF
+        LD      C,BPRN
+        CALL    BDOSCL
+        RET
+
+PRNDIR: LD      A,'['
+        CALL    PUTCH
+        CALL    HASEXT
+        JR      Z,PDNOE
+        CALL    PRN12
+        LD      A,']'
+        CALL    PUTCH
+        RET
+
+PDNOE:  LD      HL,FSFN+7
+        LD      B,8
+PDLEN:  LD      A,(HL)
+        CP      ' '
+        JR      NZ,PDHVE
+        DEC     HL
+        DJNZ    PDLEN
+        XOR     A
+        LD      (DLEN),A
+        JR      PDCLS
+PDHVE:  LD      A,B
+        LD      (DLEN),A
+        LD      HL,FSFN
+PDPRN:  LD      A,(HL)
+        CALL    PUTCH
+        INC     HL
+        DJNZ    PDPRN
+PDCLS:  LD      A,']'
+        CALL    PUTCH
+        LD      A,(DLEN)
+        LD      C,A
+        LD      A,12
+        SUB     C
+        LD      B,A
+        CALL    PSPCS
+        RET
+
+HASEXT: LD      HL,FSFN+8
+        LD      A,(HL)
+        INC     HL
+        CP      ' '
+        RET     NZ
+        LD      A,(HL)
+        INC     HL
+        CP      ' '
+        RET     NZ
+        LD      A,(HL)
+        CP      ' '
+        RET
+
+PRN12:  LD      HL,FSFN
+        LD      B,8
+PRNAM:  LD      A,(HL)
+        CALL    PUTCH
+        INC     HL
+        DJNZ    PRNAM
+
+        LD      HL,FSFN+10
+        LD      A,(HL)
+        CP      ' '
+        JR      NZ,PREX3
+        DEC     HL
+        LD      A,(HL)
+        CP      ' '
+        JR      NZ,PREX2
+        DEC     HL
+        LD      A,(HL)
+        CP      ' '
+        JR      NZ,PREL1
+
+        LD      B,4
+        CALL    PSPCS
+        RET
+
+PREL1:  LD      B,2
+        CALL    PSPCS
+        LD      B,1
+        JR      PREDO
+PREX2:  LD      B,1
+        CALL    PSPCS
+        LD      B,2
+        JR      PREDO
+PREX3:  LD      B,3
+PREDO:  LD      HL,FSFN+8
+        LD      A,'.'
+        CALL    PUTCH
+PREXL:  LD      A,(HL)
+        CALL    PUTCH
+        INC     HL
+        DJNZ    PREXL
+        RET
+
+PSPCS:  LD      A,' '
+        CALL    PUTCH
+        DJNZ    PSPCS
+        RET
+
+PUTCH:  LD      E,A
+        LD      C,BCOUT
+        CALL    BDOSCL
+        RET
+
+SHERR:
+        LD      (LERR),A
+        CP      ERUSE
+        JR      NZ,SHPR
+        LD      DE,MSUSE
+        LD      C,BPRN
+        CALL    BDOSCL
+        RET
+SHPR:   CALL    PRERR
+        RET
+
+INIT:
+        XOR     A
+        LD      (LERR),A
+        LD      (WMODE),A
+        LD      (DDRV),A
+        LD      (BREC),A
+        LD      (SVAL),A
+        LD      (MCNT),A
+        LD      HL,0
+        LD      (FPOS),HL
+        LD      (FPOS+2),HL
+        RET
+
+PARARG:
+        LD      HL,CTAIL
+        LD      B,(HL)
+        INC     HL
+
+        CALL    SKPSP
+        LD      A,B
+        OR      A
+        JR      Z,PAROOT
+        LD      A,(HL)
+        CP      0DH
+        JR      Z,PAROOT
+        CP      '/'
+        JP      NZ,PABAD
+
+        LD      DE,SDIR
+        LD      C,79
+PACPY:
+        LD      A,B
+        OR      A
+        JR      Z,PATRM
+        LD      A,(HL)
+        CP      0DH
+        JR      Z,PATRM
+        CP      ' '
+        JR      Z,PATRM
+        LD      A,C
+        OR      A
+        JP      Z,PABAD
+        LD      A,(HL)
+        LD      (DE),A
+        INC     DE
+        INC     HL
+        DEC     B
+        DEC     C
+        JR      PACPY
+
+PATRM:
+        XOR     A
+        LD      (DE),A
+        OR      A
+        RET
+
+PAROOT:
+        LD      HL,SDIR
+        LD      A,'/'
+        LD      (HL),A
+        INC     HL
+        XOR     A
+        LD      (HL),A
+        OR      A
+        RET
+
+PABAD:
+        LD      A,ERUSE
+        SCF
+        RET
+
+SKPSP:
+        LD      A,B
+        OR      A
+        RET     Z
+        LD      A,(HL)
+        CP      ' '
+        RET     NZ
+        INC     HL
+        DEC     B
+        JR      SKPSP
+
+MSHEAD: DB      'Directory of ','$'
+MSNONE: DB      'No entries',13,10,'$'
+MSUSE:  DB      'Usage: FATDIR [/DIR]',13,10,'$'
+MSCRLF: DB      13,10,'$'
+DLEN:   DB      0
+
+; shared data
+LERR:   DB      0
+WMODE:  DB      0
+DDRV:   DB      0
+BREC:   DB      0
+SVAL:   DB      0
+MCNT:   DB      0
+
+NFAT:   DB      0
+SPC:    DB      0
+
+SSEC:   DB      0
+SENT:   DB      0
+FSEC:   DB      0
+TATR:   DB      0
+
+RSEC:   DW      0
+RSEC4:  DW      0,0
+LSPTR:  DW      0
+
+PLBA:   DW      0,0
+FFAT:   DW      0,0
+FDAT:   DW      0,0
+TSEC:   DW      0,0
+FSZ:    DW      0,0
+CCNT:   DW      0,0
+RCLU:   DW      0,0
+
+CCLU:   DW      0,0
+SCLU:   DW      0,0
+
+FCLU:   DW      0,0
+FSIZ:   DW      0,0
+FATR:   DB      0
+FSFN:   DS      11
+
+F1CL:   DW      0,0
+FCCL:   DW      0,0
+FSZE:   DW      0,0
+FPOS:   DW      0,0
+FSOF:   DW      0
+
+SLBA:   DW      0,0
+TMP4:   DW      0,0
+TMP2:   DW      0,0
+TMP3:   DW      0,0
+OVHD:   DW      0,0
+
+SSPEC:  DS      80
+SDIR:   DS      80
+SLEAF:  DS      16
+LEAF:   DS      16
+TOKBF:  DS      16
+
+SFN11:  DS      11
+PAT11:  DS      11
+DFCB:   DS      36
+NMBUF:  DS      13
+
+DMABF:  DS      128
+SECBF:  DS      512
+
+END
