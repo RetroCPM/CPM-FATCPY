@@ -19,9 +19,12 @@
         PUBLIC  FATMNT,OPNSGL,OPNDIR,MKPAT
         PUBLIC  DSINIT,DSRAW,DSMAT,MKFCBL,MKFCBF
         PUBLIC  CPYCUR,CPYFND
+        PUBLIC  CPALL
 
+BCLI    EQU     1
 BSEL    EQU     14
 BCLOS   EQU     16
+BSRCH   EQU     17
 BDEL    EQU     19
 BWSEQ   EQU     21
 BMAKE   EQU     22
@@ -1029,6 +1032,7 @@ CPFBD:  SCF
 CPYCUR:
         CALL    CPMPRE
         JR      C,CPCBD
+        RET     Z               ; No: destination was left untouched
 CPCLP:  CALL    FR128
         JR      C,CPCBD
         LD      A,(BREC)
@@ -1072,6 +1076,7 @@ CPCER:  LD      C,BPRN
 CPCBD:  SCF
         RET
 
+; Return carry on error, Z on skip, NZ when the destination is ready.
 CPMPRE:
         LD      A,(DDRV)
         DEC     A
@@ -1082,9 +1087,36 @@ CPMPRE:
         LD      C,BSDMA
         CALL    BDOSCL
         LD      DE,DFCB
+        LD      C,BSRCH
+        CALL    BDOSCL
+        INC     A
+        JR      Z,CPMNEW
+        LD      A,(CPALL)
+        OR      A
+        JR      NZ,CPMDEL
+CPMASK: LD      DE,MSREPL
+        LD      C,BPRN
+        CALL    BDOSCL
+        LD      C,BCLI
+        CALL    BDOSCL
+        CALL    UPCA
+        PUSH    AF
+        LD      DE,MSCPNL
+        LD      C,BPRN
+        CALL    BDOSCL
+        POP     AF
+        CP      'Y'
+        JR      Z,CPMDEL
+        CP      'N'
+        JR      Z,CPMSKP
+        CP      'A'
+        JR      NZ,CPMASK
+        LD      A,1
+        LD      (CPALL),A
+CPMDEL: LD      DE,DFCB
         LD      C,BDEL
         CALL    BDOSCL
-        LD      DE,DFCB
+CPMNEW: LD      DE,DFCB
         LD      C,BMAKE
         CALL    BDOSCL
         INC     A
@@ -1097,6 +1129,17 @@ CPMKE:  LD      DE,MSMKE
         LD      A,ERCPM
         SCF
         RET
+
+CPMSKP: LD      DE,MSSKIP
+        LD      C,BPRN
+        CALL    BDOSCL
+        XOR     A               ; Successful skip: clear carry and set Z
+        RET
+
+CPALL:  DB      0               ; Reset by FATCPY INIT for each run
+MSREPL: DB      'File exists. Replace? Yes/No/All (Y/N/A): $'
+MSCPNL: DB      13,10,'$'
+MSSKIP: DB      'Skipped',13,10,'$'
 
 MKFCBL:
         LD      HL,LEAF

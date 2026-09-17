@@ -1,5 +1,6 @@
         EXTRN   FATMNT,OPNSGL,OPNDIR,MKPAT
         EXTRN   DSINIT,DSMAT,MKFCBL,CPYCUR,CPYFND
+        EXTRN   CPALL
         EXTRN   PRERR,BDOSCL,UPCA,CPYAZ,PRG11
         EXTRN   ATASETUP
 
@@ -111,6 +112,7 @@ INIT:
         LD      (SVAL),A
         LD      (MCNT),A
         LD      HL,0
+        LD      (CPALL),A
         LD      (FPOS),HL
         LD      (FPOS+2),HL
         RET

@@ -1,0 +1,3 @@
+# CP/M tools require CRLF line endings.
+*.MAC text eol=crlf
+*.SUB text eol=crlf

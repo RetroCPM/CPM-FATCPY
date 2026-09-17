@@ -26,6 +26,18 @@ FATCPY B: /DIR/*
 
 Wildcards `*` and `?` are supported in the path pattern.
 
+If a destination file already exists, FATCPY asks
+`File exists. Replace? Yes/No/All (Y/N/A):` after displaying its name.
+
+- `Y` replaces the current file and asks again for the next existing file.
+- `N` leaves the current file unchanged and skips to the next match.
+- `A` replaces the current file and all subsequent existing files without asking
+  again during this run.
+
+Responses are single keys, accept either case, and do not require Enter. Other
+keys repeat the question. Files that do not already exist are copied without a
+prompt.
+
 ## FATCPY Examples
 
 ```text
